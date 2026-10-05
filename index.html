@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>日记洞察 journal-insights</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#222}
+h1{font-size:22px} textarea{width:100%;height:90px;box-sizing:border-box}
+button{margin:4px 6px 4px 0;padding:6px 12px;cursor:pointer}
+.card{border:1px solid #ddd;border-radius:8px;padding:12px;margin:12px 0}
+.row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:200px}
+.mood{font-size:14px;color:#555}
+</style>
+</head>
+<body>
+<h1>日记洞察 journal-insights</h1>
+<p class="mood">本地 localStorage 保存；自动统计词频、情绪曲线、高频主题。无 API Key 即可用。</p>
+<div class="card">
+  <h3>写日记</h3>
+  <textarea id="entry" placeholder="今天心情如何？发生了什么？"></textarea>
+  <div>情绪：<select id="mood">
+    <option value="2">开心</option><option value="1">一般</option>
+    <option value="-1">低落</option><option value="-2">糟糕</option></select>
+    <button onclick="addEntry()">保存这一条</button></div>
+</div>
+<div class="row">
+  <div class="card"><h3>情绪曲线</h3><div id="moodChart"></div></div>
+  <div class="card"><h3>高频词 / 主题</h3><div id="freqList"></div></div>
+</div>
+<div class="card"><h3>全部日记</h3><div id="entries"></div></div>
+<script>
+function tokenizeZh(text){return (text||'').toLowerCase().split(/[\s，。！？、；：""''（）()\[\].,!?;:\n\r]+/).map(s=>s.trim()).filter(s=>s.length>=2);}
+function wordFreq(entries){const cnt={};(entries||[]).forEach(e=>{tokenizeZh(e.text).forEach(w=>{cnt[w]=(cnt[w]||0)+1;});});return Object.entries(cnt).sort((a,b)=>b[1]-a[1]);}
+function moodSeries(entries){return (entries||[]).map(e=>Number(e.mood)||0);}
+function avgMood(entries){const s=moodSeries(entries);if(!s.length)return 0;return s.reduce((a,b)=>a+b,0)/s.length;}
+const POS=["开心","高兴","愉快","幸福","喜欢","棒","好","不错","轻松","满足"];
+const NEG=["难过","伤心","沮丧","烦","累","糟糕","讨厌","痛苦","焦虑","怕"];
+function sentimentOf(text){const t=text||"";let pos=0,neg=0;POS.forEach(w=>{if(t.includes(w))pos++;});NEG.forEach(w=>{if(t.includes(w))neg++;});return pos-neg;}
+function topThemes(entries,n=8){return wordFreq(entries).slice(0,n);}
+if(typeof module!=='undefined'){module.exports={tokenizeZh,wordFreq,moodSeries,avgMood,sentimentOf,topThemes,POS,NEG};}
+const KEY='journal_entries_v1';
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){return [];}}
+function save(x){localStorage.setItem(KEY,JSON.stringify(x));}
+function addEntry(){const text=document.getElementById('entry').value.trim();if(!text)return;const mood=Number(document.getElementById('mood').value);const arr=load();arr.push({text,mood,ts:Date.now()});save(arr);document.getElementById('entry').value='';render();}
+function render(){const arr=load();const ser=moodSeries(arr);document.getElementById('moodChart').textContent=ser.length?'mood: ['+ser.join(', ')+']  平均='+avgMood(arr).toFixed(2):'（暂无数据）';const themes=topThemes(arr,10);document.getElementById('freqList').innerHTML=themes.length?themes.map(([w,c])=>`<div>${w} × ${c}</div>`).join(''):'（暂无数据）';document.getElementById('entries').innerHTML=arr.slice().reverse().map(e=>`<div class="card">${new Date(e.ts).toLocaleString()} · mood=${e.mood} · 情感=${sentimentOf(e.text)}<br>${e.text}</div>`).join('');}
+render();
+</script>
+</body>
+</html>
